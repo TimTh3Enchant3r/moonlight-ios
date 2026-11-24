@@ -9,6 +9,7 @@
 #import "SettingsViewController.h"
 #import "TemporarySettings.h"
 #import "DataManager.h"
+#import "Utils.h"
 
 #import <VideoToolbox/VideoToolbox.h>
 #import <AVFoundation/AVFoundation.h>
@@ -141,12 +142,16 @@ BOOL isCustomResolution(CGSize res) {
     _bitrate = bitrateTable[[self getSliderValueForBitrate:[currentSettings.bitrate intValue]]];
 
     // Get the size of the screen with and without safe area insets
-    UIWindow *window = UIApplication.sharedApplication.windows.firstObject;
-    CGFloat screenScale = window.screen.scale;
-    CGFloat safeAreaWidth = (window.frame.size.width - window.safeAreaInsets.left - window.safeAreaInsets.right) * screenScale;
-    CGFloat fullScreenWidth = window.frame.size.width * screenScale;
-    CGFloat fullScreenHeight = window.frame.size.height * screenScale;
-    
+    // Use physical pixels in landscape so the native options match the
+    // panel exactly (e.g. 2670x1878 on the iPhone Duo inner display)
+    // no matter how the phone is held or what Display Zoom is set to.
+    UIWindow *window = self.view.window ?: UIApplication.sharedApplication.windows.firstObject;
+    CGSize safeAreaSize = [Utils nativeStreamResolutionForWindow:window safeAreaOnly:YES];
+    CGSize fullScreenSize = [Utils nativeStreamResolutionForWindow:window safeAreaOnly:NO];
+    CGFloat safeAreaWidth = safeAreaSize.width;
+    CGFloat fullScreenWidth = fullScreenSize.width;
+    CGFloat fullScreenHeight = fullScreenSize.height;
+
     self.resolutionDisplayView.layer.cornerRadius = 10;
     self.resolutionDisplayView.clipsToBounds = YES;
     UITapGestureRecognizer *resolutionDisplayViewTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(resolutionDisplayViewTapped:)];
@@ -186,6 +191,19 @@ BOOL isCustomResolution(CGSize res) {
             resolution = i;
             break;
         }
+    }
+
+    // A saved "native" choice follows whichever screen is active now
+    // (iPhone Duo folded vs. unfolded), even if the stored size differs.
+    switch ([Utils savedNativeResolutionMode]) {
+        case NativeResolutionModeSafeArea:
+            resolution = 4;
+            break;
+        case NativeResolutionModeFullScreen:
+            resolution = 5;
+            break;
+        default:
+            break;
     }
 
     // Only show the 120 FPS option if we have a > 60-ish Hz display
@@ -527,6 +545,15 @@ BOOL isCustomResolution(CGSize res) {
     NSInteger framerate = [self getChosenFrameRate];
     NSInteger height = [self getChosenStreamHeight];
     NSInteger width = [self getChosenStreamWidth];
+    BOOL customSelected = [self.resolutionSelector selectedSegmentIndex] + 1 == [self.resolutionSelector numberOfSegments];
+    NSInteger selectedResolution = [self.resolutionSelector selectedSegmentIndex];
+    if (!customSelected && selectedResolution == 4) {
+        [Utils setSavedNativeResolutionMode:NativeResolutionModeSafeArea];
+    } else if (!customSelected && selectedResolution == 5) {
+        [Utils setSavedNativeResolutionMode:NativeResolutionModeFullScreen];
+    } else {
+        [Utils setSavedNativeResolutionMode:NativeResolutionModeNone];
+    }
     NSInteger onscreenControls = [self.onscreenControlSelector selectedSegmentIndex];
     BOOL optimizeGames = [self.optimizeSettingsSelector selectedSegmentIndex] == 1;
     BOOL multiController = [self.multiControllerSelector selectedSegmentIndex] == 1;

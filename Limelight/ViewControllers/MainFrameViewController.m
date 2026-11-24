@@ -623,6 +623,22 @@ static NSMutableSet* hostList;
     
     _streamConfig.height = [streamSettings.height intValue];
     _streamConfig.width = [streamSettings.width intValue];
+#if !TARGET_OS_TV
+    // If the user picked a native resolution, use the screen that is active
+    // right now. On iPhone Duo this streams 2670x1878 when unfolded and
+    // 2034x1398 when folded, instead of whatever screen settings were saved on.
+    NativeResolutionMode nativeMode = [Utils savedNativeResolutionMode];
+    if (nativeMode != NativeResolutionModeNone) {
+        UIWindow* window = self.view.window ?: UIApplication.sharedApplication.windows.firstObject;
+        CGSize nativeSize = [Utils nativeStreamResolutionForWindow:window
+                                                      safeAreaOnly:nativeMode == NativeResolutionModeSafeArea];
+        if (nativeSize.width > 0 && nativeSize.height > 0) {
+            _streamConfig.width = (int)nativeSize.width;
+            _streamConfig.height = (int)nativeSize.height;
+            Log(LOG_I, @"Using native resolution for current screen: %dx%d", _streamConfig.width, _streamConfig.height);
+        }
+    }
+#endif
 #if TARGET_OS_TV
     // Don't allow streaming 4K on the Apple TV HD
     struct utsname systemInfo;

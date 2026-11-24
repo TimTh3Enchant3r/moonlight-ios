@@ -14,6 +14,7 @@
 #import "RelativeTouchHandler.h"
 #import "AbsoluteTouchHandler.h"
 #import "KeyboardInputField.h"
+#import <AVFoundation/AVFoundation.h>
 
 static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
 
@@ -44,6 +45,28 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     BOOL hasUserInteracted;
     
     NSDictionary<NSString *, NSNumber *> *dictCodes;
+}
+
+// The video layer is sized once when the stream starts. On a foldable like
+// iPhone Duo, folding or unfolding changes our bounds mid-stream, so re-fit
+// the layer to keep the stream's aspect ratio and fill the new screen.
+- (void) layoutSubviews {
+    [super layoutSubviews];
+
+    if (streamAspectRatio <= 0 || self.bounds.size.width <= 0 || self.bounds.size.height <= 0) {
+        return;
+    }
+
+    CGSize videoSize = [self getVideoAreaSize];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (CALayer* layer in self.layer.sublayers) {
+        if ([layer isKindOfClass:[AVSampleBufferDisplayLayer class]]) {
+            layer.position = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
+            layer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
+        }
+    }
+    [CATransaction commit];
 }
 
 - (void) setupStreamView:(ControllerSupport*)controllerSupport

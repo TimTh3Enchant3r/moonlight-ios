@@ -146,6 +146,41 @@ NSString *const deviceName = @"roth";
     }
 }
 
+static NSString* const kNativeResolutionModeKey = @"NativeResolutionMode";
+
++ (CGSize) nativeStreamResolutionForWindow:(UIWindow*)window safeAreaOnly:(BOOL)safeAreaOnly {
+    UIScreen* screen = window.screen ?: [UIScreen mainScreen];
+
+    // nativeBounds is always in physical pixels, portrait-up, regardless of
+    // Display Zoom or the current interface orientation.
+    CGSize pixels = screen.nativeBounds.size;
+    CGFloat width = MAX(pixels.width, pixels.height);
+    CGFloat height = MIN(pixels.width, pixels.height);
+
+    if (safeAreaOnly && window != nil) {
+        // Streams are landscape, where the Dynamic Island/camera sits on a
+        // short edge. Trim the largest inset from both short edges so the
+        // video stays centered.
+        UIEdgeInsets insets = window.safeAreaInsets;
+        CGFloat inset = MAX(MAX(insets.left, insets.right), MAX(insets.top, insets.bottom));
+        width -= 2 * inset * screen.nativeScale;
+    }
+
+    // Video encoders need even dimensions
+    width = floor(width / 2) * 2;
+    height = floor(height / 2) * 2;
+
+    return CGSizeMake(width, height);
+}
+
++ (NativeResolutionMode) savedNativeResolutionMode {
+    return (NativeResolutionMode)[[NSUserDefaults standardUserDefaults] integerForKey:kNativeResolutionModeKey];
+}
+
++ (void) setSavedNativeResolutionMode:(NativeResolutionMode)mode {
+    [[NSUserDefaults standardUserDefaults] setInteger:mode forKey:kNativeResolutionModeKey];
+}
+
 @end
 
 @implementation NSString (NSStringWithTrim)
