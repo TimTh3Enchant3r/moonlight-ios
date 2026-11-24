@@ -107,7 +107,9 @@
     _controllerSupport = [[ControllerSupport alloc] initWithConfig:self.streamConfig delegate:self];
     _inactivityTimer = nil;
     
-    _streamView = [[StreamView alloc] initWithFrame:self.view.frame];
+    _streamView = [[StreamView alloc] initWithFrame:self.view.bounds];
+    // Follow the screen when it changes size (iPhone Duo fold/unfold, rotation)
+    _streamView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [_streamView setupStreamView:_controllerSupport interactionDelegate:self config:self.streamConfig];
     
 #if TARGET_OS_TV
@@ -188,7 +190,8 @@
     
     // Only enable scroll and zoom in absolute touch mode
     if (_settings.absoluteTouchMode) {
-        _scrollView = [[UIScrollView alloc] initWithFrame:self.view.frame];
+        _scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
+        _scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 #if !TARGET_OS_TV
         [_scrollView.panGestureRecognizer setMinimumNumberOfTouches:2];
 #endif
@@ -209,6 +212,36 @@
     [self.view addSubview:_stageLabel];
     [self.view addSubview:_spinner];
     [self.view addSubview:_tipLabel];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+
+    // When the screen changes size (iPhone Duo fold/unfold), resize the stream
+    // to the new screen. StreamView then re-fits the video in layoutSubviews.
+    if (_scrollView != nil) {
+        // Autoresizing doesn't apply to zoomed scroll view content, so reset
+        // the zoom and size the stream to the scroll view directly.
+        if (!CGSizeEqualToSize(_streamView.bounds.size, _scrollView.bounds.size) && _scrollView.zoomScale == 1.0) {
+            _streamView.frame = _scrollView.bounds;
+            _scrollView.contentSize = _scrollView.bounds.size;
+        }
+        else if (!CGSizeEqualToSize(_scrollView.contentSize, _scrollView.bounds.size) && _scrollView.zoomScale == 1.0) {
+            _scrollView.contentSize = _scrollView.bounds.size;
+        }
+    }
+
+    // Keep the loading text centered on the current screen
+    CGSize size = self.view.bounds.size;
+    _stageLabel.center = CGPointMake(size.width / 2, size.height / 2);
+    _spinner.center = CGPointMake(size.width / 2, size.height / 2 - _stageLabel.frame.size.height - _spinner.frame.size.height);
+    _tipLabel.center = CGPointMake(size.width / 2, size.height * 0.9);
+}
+
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    // A zoom level picked for one screen doesn't make sense on the other
+    [_scrollView setZoomScale:1.0 animated:NO];
 }
 
 - (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView {

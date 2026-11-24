@@ -121,18 +121,7 @@ static float L3_Y;
     _swapABXY = streamConfig.swapABXYButtons;
     
     _iPad = ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad);
-    _controlArea = CGRectMake(0, 0, _view.frame.size.width, _view.frame.size.height);
-    if (_iPad)
-    {
-        // Cut down the control area on an iPad so the controls are more reachable
-        _controlArea.size.height = _view.frame.size.height / 2.0;
-        _controlArea.origin.y = _view.frame.size.height - _controlArea.size.height;
-    }
-    else
-    {
-        _controlArea.origin.x = _controlArea.size.width * EDGE_WIDTH;
-        _controlArea.size.width -= _controlArea.origin.x * 2;
-    }
+    [self computeControlArea];
     
     _aButton = [CALayer layer];
     _bButton = [CALayer layer];
@@ -156,6 +145,29 @@ static float L3_Y;
     _rightStick = [CALayer layer];
     
     return self;
+}
+
+- (void) computeControlArea {
+    _controlArea = CGRectMake(0, 0, _view.frame.size.width, _view.frame.size.height);
+    if (_iPad)
+    {
+        // Cut down the control area on an iPad so the controls are more reachable
+        _controlArea.size.height = _view.frame.size.height / 2.0;
+        _controlArea.origin.y = _view.frame.size.height - _controlArea.size.height;
+    }
+    else
+    {
+        _controlArea.origin.x = _controlArea.size.width * EDGE_WIDTH;
+        _controlArea.size.width -= _controlArea.origin.x * 2;
+    }
+}
+
+// Recompute control positions for a new screen size (iPhone Duo fold/unfold)
+- (void) relayout {
+    [self computeControlArea];
+    if (_visible) {
+        [self updateControls];
+    }
 }
 
 - (void) show {

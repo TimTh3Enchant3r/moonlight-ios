@@ -26,6 +26,7 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     NSMutableSet* keysDown;
     
     float streamAspectRatio;
+    CGSize lastLayoutSize;
     
     // iOS 13.4 mouse support
     NSInteger lastMouseButtonMask;
@@ -57,6 +58,15 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
         return;
     }
 
+    // Screen changed size (fold/unfold): move the on-screen controls too
+    if (!CGSizeEqualToSize(lastLayoutSize, self.bounds.size)) {
+        BOOL firstLayout = CGSizeEqualToSize(lastLayoutSize, CGSizeZero);
+        lastLayoutSize = self.bounds.size;
+        if (!firstLayout) {
+            [onScreenControls relayout];
+        }
+    }
+
     CGSize videoSize = [self getVideoAreaSize];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -74,6 +84,8 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
                   config:(StreamConfiguration*)streamConfig {
     self->interactionDelegate = interactionDelegate;
     self->streamAspectRatio = (float)streamConfig.width / (float)streamConfig.height;
+    // In fill mode the video is slightly larger than the screen; crop the overflow
+    self.clipsToBounds = YES;
     
     TemporarySettings* settings = [[[DataManager alloc] init] getSettings];
     
@@ -199,11 +211,29 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     }
 }
 
+// How far the screen's shape may differ from the stream's before we stop
+// filling. The iPhone Duo's inner (2670x1878) and outer (2034x1398) displays
+// differ by about 2.4%, so a stream started on one fills the other with only
+// a sliver cropped from the edges. Bigger mismatches (e.g. a 16:9 stream on
+// a phone) still letterbox so nothing important is cut off.
+static const CGFloat kFillAspectTolerance = 0.08;
+
 - (CGSize) getVideoAreaSize {
-    if (self.bounds.size.width > self.bounds.size.height * streamAspectRatio) {
-        return CGSizeMake(self.bounds.size.height * streamAspectRatio, self.bounds.size.height);
+    CGSize bounds = self.bounds.size;
+    if (bounds.width <= 0 || bounds.height <= 0 || streamAspectRatio <= 0) {
+        return bounds;
+    }
+
+    CGFloat viewAspect = bounds.width / bounds.height;
+    BOOL viewIsWider = viewAspect > streamAspectRatio;
+    BOOL fill = fabs(viewAspect / streamAspectRatio - 1.0) <= kFillAspectTolerance;
+
+    // Fit: match the limiting dimension. Fill: match the other one, so the
+    // video covers the whole screen and overflows (crops) slightly.
+    if (viewIsWider != fill) {
+        return CGSizeMake(bounds.height * streamAspectRatio, bounds.height);
     } else {
-        return CGSizeMake(self.bounds.size.width, self.bounds.size.width / streamAspectRatio);
+        return CGSizeMake(bounds.width, bounds.width / streamAspectRatio);
     }
 }
 
@@ -231,7 +261,7 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
         y++;
     }
     
-    // This logic mimics what iOS does with AVLayerVideoGravityResizeAspect
+    // Matches the video layer's size and position (fit or fill)
     CGSize videoSize = [self getVideoAreaSize];
     CGPoint videoOrigin = CGPointMake(self.bounds.size.width / 2 - videoSize.width / 2,
                                       self.bounds.size.height / 2 - videoSize.height / 2);
