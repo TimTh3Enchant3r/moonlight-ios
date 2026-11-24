@@ -8,6 +8,55 @@
 
 #import "AppDelegate.h"
 
+#if !TARGET_OS_TV
+// Apps built with the iOS 27 SDK must use the UIScene life cycle or they
+// crash at launch in UIApplicationMain. This minimal scene delegate creates
+// the window from the same storyboards UIMainStoryboardFile used to load,
+// and hands it to AppDelegate so existing [delegate window] calls keep working.
+// It lives in this file so no Xcode project changes are needed.
+@interface SceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property (strong, nonatomic) UIWindow *window;
+@end
+
+@implementation SceneDelegate
+
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
+    if (![scene isKindOfClass:[UIWindowScene class]]) {
+        return;
+    }
+
+    UIWindowScene* windowScene = (UIWindowScene*)scene;
+    NSString* storyboardName = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? @"iPad" : @"iPhone";
+    UIStoryboard* storyboard = [UIStoryboard storyboardWithName:storyboardName bundle:nil];
+
+    self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
+    self.window.rootViewController = [storyboard instantiateInitialViewController];
+
+    AppDelegate* appDelegate = (AppDelegate*)UIApplication.sharedApplication.delegate;
+    appDelegate.window = self.window;
+
+    // Home screen quick action used to launch the app
+    if (connectionOptions.shortcutItem != nil) {
+        appDelegate.pcUuidToLoad = (NSString*)[connectionOptions.shortcutItem.userInfo objectForKey:@"UUID"];
+    }
+
+    [self.window makeKeyAndVisible];
+}
+
+- (void)windowScene:(UIWindowScene *)windowScene performActionForShortcutItem:(UIApplicationShortcutItem *)shortcutItem completionHandler:(void (^)(BOOL))completionHandler {
+    AppDelegate* appDelegate = (AppDelegate*)UIApplication.sharedApplication.delegate;
+    [appDelegate application:UIApplication.sharedApplication performActionForShortcutItem:shortcutItem completionHandler:completionHandler];
+}
+
+- (void)sceneDidEnterBackground:(UIScene *)scene {
+    // Scene apps don't get applicationWillTerminate reliably; save here instead
+    AppDelegate* appDelegate = (AppDelegate*)UIApplication.sharedApplication.delegate;
+    [appDelegate saveContext];
+}
+
+@end
+#endif
+
 @implementation AppDelegate
 
 @synthesize managedObjectContext = _managedObjectContext;
