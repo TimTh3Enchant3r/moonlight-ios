@@ -418,17 +418,21 @@ static const CGFloat kFillAspectTolerance = 0.08;
                 // Prepare the toolbar above the keyboard for more options
                 UIToolbar *customToolbarView = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, self.bounds.size.width, 44)];
                 
-                UIBarButtonItem *doneBarButton = [self createButtonWithImageNamed:@"DoneIcon.png" backgroundColor:[UIColor clearColor] target:self action:@selector(toolbarButtonClicked:) keyCode:0x00 isToggleable:NO];
-                UIBarButtonItem *windowsBarButton = [self createButtonWithImageNamed:@"WindowsIcon.png" backgroundColor:[UIColor blackColor] target:self action:@selector(toolbarButtonClicked:) keyCode:0x5B isToggleable:YES];
-                UIBarButtonItem *tabBarButton = [self createButtonWithImageNamed:@"TabIcon.png" backgroundColor:[UIColor blackColor] target:self action:@selector(toolbarButtonClicked:) keyCode:0x09 isToggleable:NO];
-                UIBarButtonItem *shiftBarButton = [self createButtonWithImageNamed:@"ShiftIcon.png" backgroundColor:[UIColor blackColor] target:self action:@selector(toolbarButtonClicked:) keyCode:0xA0 isToggleable:YES];
-                UIBarButtonItem *escapeBarButton = [self createButtonWithImageNamed:@"EscapeIcon.png" backgroundColor:[UIColor blackColor] target:self action:@selector(toolbarButtonClicked:) keyCode:0x1B isToggleable:NO];
-                UIBarButtonItem *controlBarButton = [self createButtonWithImageNamed:@"ControlIcon.png" backgroundColor:[UIColor blackColor] target:self action:@selector(toolbarButtonClicked:) keyCode:0xA2 isToggleable:YES];
-                UIBarButtonItem *altBarButton = [self createButtonWithImageNamed:@"AltIcon.png" backgroundColor:[UIColor blackColor] target:self action:@selector(toolbarButtonClicked:) keyCode:0xA4 isToggleable:YES];
-                UIBarButtonItem *deleteBarButton = [self createButtonWithImageNamed:@"DeleteIcon.png" backgroundColor:[UIColor blackColor] target:self action:@selector(toolbarButtonClicked:) keyCode:0x2E isToggleable:NO];
+                // Keys styled like the iOS keyboard's own keycaps, using SF Symbols
+                // and lowercase labels so they blend in with the system keyboard.
+                UIBarButtonItem *doneBarButton = [self createKeyButtonWithTitle:nil symbol:@"keyboard.chevron.compact.down" accessibilityLabel:@"Hide Keyboard" keyCode:0x00 isToggleable:NO];
+                UIBarButtonItem *windowsBarButton = [self createKeyButtonWithTitle:nil symbol:@"square.grid.2x2" accessibilityLabel:@"Windows" keyCode:0x5B isToggleable:YES];
+                UIBarButtonItem *escapeBarButton = [self createKeyButtonWithTitle:@"esc" symbol:nil accessibilityLabel:@"Escape" keyCode:0x1B isToggleable:NO];
+                UIBarButtonItem *tabBarButton = [self createKeyButtonWithTitle:nil symbol:@"arrow.right.to.line" accessibilityLabel:@"Tab" keyCode:0x09 isToggleable:NO];
+                UIBarButtonItem *shiftBarButton = [self createKeyButtonWithTitle:nil symbol:@"shift" accessibilityLabel:@"Shift" keyCode:0xA0 isToggleable:YES];
+                UIBarButtonItem *controlBarButton = [self createKeyButtonWithTitle:@"ctrl" symbol:nil accessibilityLabel:@"Control" keyCode:0xA2 isToggleable:YES];
+                UIBarButtonItem *altBarButton = [self createKeyButtonWithTitle:@"alt" symbol:nil accessibilityLabel:@"Alt" keyCode:0xA4 isToggleable:YES];
+                UIBarButtonItem *deleteBarButton = [self createKeyButtonWithTitle:nil symbol:@"delete.right" accessibilityLabel:@"Delete" keyCode:0x2E isToggleable:NO];
                 UIBarButtonItem *flexibleSpace = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
-                
-                [customToolbarView setItems:[NSArray arrayWithObjects:doneBarButton, windowsBarButton, escapeBarButton, tabBarButton, shiftBarButton, controlBarButton, altBarButton, deleteBarButton, flexibleSpace, nil]];
+
+                // Modifier and special keys on the left, dismiss on the right,
+                // matching where iOS puts its own keyboard-dismiss control
+                [customToolbarView setItems:@[windowsBarButton, escapeBarButton, tabBarButton, shiftBarButton, controlBarButton, altBarButton, deleteBarButton, flexibleSpace, doneBarButton]];
                 keyInputField.inputAccessoryView = customToolbarView;
 #endif
                 [keyInputField becomeFirstResponder];
@@ -443,21 +447,53 @@ static const CGFloat kFillAspectTolerance = 0.08;
     }
 }
 
-- (UIBarButtonItem *)createButtonWithImageNamed:(NSString *)imageName backgroundColor:(UIColor *)backgroundColor target:(id)target action:(SEL)action keyCode:(NSInteger)keyCode isToggleable:(BOOL)isToggleable {
-    UIImage *image = [UIImage imageNamed:imageName];
-    UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
-    [button setImage:image forState:UIControlStateNormal];
-    button.frame = CGRectMake(0, 0, 30, 30);
-    button.imageView.contentMode = UIViewContentModeScaleAspectFit;
-    button.imageView.backgroundColor = backgroundColor;
-    button.imageView.layer.cornerRadius = 10.0;
-    button.imageEdgeInsets = UIEdgeInsetsMake(6, 6, 6, 6);
-    [button addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
+- (UIBarButtonItem *)createKeyButtonWithTitle:(NSString *)title symbol:(NSString *)symbolName accessibilityLabel:(NSString *)accessibilityLabel keyCode:(NSInteger)keyCode isToggleable:(BOOL)isToggleable {
+    UIButtonConfiguration *config = [UIButtonConfiguration plainButtonConfiguration];
+    config.cornerStyle = UIButtonConfigurationCornerStyleMedium;
+    config.contentInsets = NSDirectionalEdgeInsetsMake(6, 10, 6, 10);
+    if (symbolName != nil) {
+        config.image = [UIImage systemImageNamed:symbolName];
+        config.preferredSymbolConfigurationForImage = [UIImageSymbolConfiguration configurationWithPointSize:16 weight:UIImageSymbolWeightMedium];
+    }
+    if (title != nil) {
+        NSDictionary *attributes = @{ NSFontAttributeName: [UIFont systemFontOfSize:15 weight:UIFontWeightMedium] };
+        config.attributedTitle = [[NSAttributedString alloc] initWithString:title attributes:attributes];
+    }
+
+    UIButton *button = [UIButton buttonWithConfiguration:config primaryAction:nil];
+    button.accessibilityLabel = accessibilityLabel;
+    [button addTarget:self action:@selector(toolbarButtonClicked:) forControlEvents:UIControlEventTouchUpInside];
     objc_setAssociatedObject(button, "keyCode", @(keyCode), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(button, "isToggleable", @(isToggleable), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(button, "isOn", @(NO), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    UIBarButtonItem *barButton = [[UIBarButtonItem alloc] initWithCustomView:button];
-    return barButton;
+
+    // The dismiss key is a bare symbol like the system's; the others are keycaps
+    BOOL isKeycap = keyCode != 0x00;
+    [self styleKeyButton:button isKeycap:isKeycap isOn:NO];
+
+    // Keep keycaps a consistent, comfortably tappable size
+    [button.heightAnchor constraintEqualToConstant:34].active = YES;
+    [button.widthAnchor constraintGreaterThanOrEqualToConstant:isKeycap ? 44 : 36].active = YES;
+
+    return [[UIBarButtonItem alloc] initWithCustomView:button];
+}
+
+// Keycap look: a subtle translucent fill like the iOS keyboard's keys, turning
+// system blue while a modifier (Shift, Ctrl, Alt, Windows) is held down.
+- (void)styleKeyButton:(UIButton *)button isKeycap:(BOOL)isKeycap isOn:(BOOL)isOn {
+    UIButtonConfiguration *config = button.configuration;
+    UIBackgroundConfiguration *background = [UIBackgroundConfiguration clearConfiguration];
+    background.cornerRadius = 8;
+    if (isOn) {
+        background.backgroundColor = [UIColor systemBlueColor];
+        config.baseForegroundColor = [UIColor whiteColor];
+    } else {
+        background.backgroundColor = isKeycap ? [UIColor tertiarySystemFillColor] : [UIColor clearColor];
+        config.baseForegroundColor = [UIColor labelColor];
+    }
+    config.background = background;
+    button.configuration = config;
+    button.accessibilityTraits = isOn ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected) : UIAccessibilityTraitButton;
 }
 
 - (void)toolbarButtonClicked:(UIButton *)sender {
@@ -466,11 +502,7 @@ static const CGFloat kFillAspectTolerance = 0.08;
     if (isToggleable){
         isOn = !isOn;
         // Update the button's appearance based on its new state
-        if (isOn) {
-            sender.imageView.backgroundColor = [UIColor lightGrayColor];
-        } else {
-            sender.imageView.backgroundColor = [UIColor blackColor];
-        }
+        [self styleKeyButton:sender isKeycap:YES isOn:isOn];
     }
     // Update the new on/off state of the button
     objc_setAssociatedObject(sender, "isOn", @(isOn), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
